@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 
 from flask import Flask, request
 import requests
@@ -12,7 +13,9 @@ _GLOBALS = {
         "search_params": {
             "sort": "updated",
             "order": "desc",
-            "per_page": "5"
+            "per_page": "5",
+            "client_id": os.environ.get("GITHUB_CLIENT_ID"),
+            "client_secret": os.environ.get("GITHUB_CLIENT_SECRET")
             },
         }
 
@@ -102,7 +105,7 @@ class Repository(object):
         if response.status_code == 200:
             content = json.loads(response.text)
         else:
-            logging.debug("request for commit returned status code: {}".format(response.status_code))
+            logging.debug("request for url ({}) returned status code: {}".format(url_string, response.status_code))
         commit = content[0]
         author = commit["author"]
         if author is None:
@@ -110,7 +113,6 @@ class Repository(object):
             author["html_url"] = ""
             author["avatar_url"] = ""
             author["login"] = ""
-        import pdb; pdb.set_trace()
         author = User(username=author["login"],
                       url=author["html_url"],
                       avatar=author["avatar_url"],
@@ -160,15 +162,22 @@ def navigator():
     resp = ""
 
     for repo in repos:
-        resp += "Name:{}<br>URL:{}<br>Owner:{}<br><br>".format(repo.name, repo.url, repo.owner.username)
+        resp += "Repository Name: <a href='{}'>{}</a><br>Owner: <a href='{}'>{}</a><br><br>".format(
+            repo.url, repo.name, repo.owner.url, repo.owner.username)
         last_commit = repo.last_commit()
-        resp += "Last Commit: {}<br>Message:{}<br>Author:<img src='{}' href='{}'>".format(
-            last_commit.sha, last_commit.message, last_commit.author.avatar, last_commit.author.name, last_commit.author.url)
+        resp += "Last Commit: <a href='{}'>{}</a><br>{}<br><a href='{}'><img src='{}' width='30px' height='30px'></a> {}<br><br>".format(
+            last_commit.url, last_commit.sha, last_commit.message, last_commit.author.url, last_commit.author.avatar, last_commit.author.name)
+        resp += "<hr>"
+        resp += "<br>"
 
 
     return resp
 
 
 if __name__ == "__main__":
+    if _GLOBALS["search_params"]["client_id"] is None:
+        logging.debug("Environment variable 'GITHUB_CLIENT_ID' not present. Unable to use authorized API.")
+    if _GLOBALS["search_params"]["client_secret"] is None:
+        logging.debug("Environment variable 'GITHUB_CLIENT_SECRET' not present. Unable to use authorized API.")
     app.run()
 
